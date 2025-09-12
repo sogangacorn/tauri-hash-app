@@ -1,35 +1,34 @@
 "use client"
 
+import { useDropzone } from "../hooks/use-dropzone"
 import type { AppState } from "../App"
 
 interface CompareHashProps {
   onSelectFolder: () => void
   onSelectCompareFolder: () => void
+  onDropFile: (path: string) => void
+  onDropCompareFile: (path: string) => void
   navigateTo: (state: AppState) => void
 }
 
-const CompareHash = ({ onSelectFolder, onSelectCompareFolder, navigateTo }: CompareHashProps) => {
+const CompareHash = ({
+  onSelectFolder,
+  onSelectCompareFolder,
+  onDropFile,
+  onDropCompareFile,
+  navigateTo,
+}: CompareHashProps) => {
+  const { isDragging: isDragging1 } = useDropzone({ onDrop: onDropFile })
+  const { isDragging: isDragging2 } = useDropzone({ onDrop: onDropCompareFile })
+
   return (
     <div className="p-6 flex flex-col md:flex-row gap-6">
       <div className="flex-1 flex flex-col gap-4">
         <div
-          className="drop-zone flex-1 flex flex-row items-center justify-center p-5 rounded-lg cursor-pointer min-h-[150px] space-x-4"
-          onDragOver={(e) => {
-            e.preventDefault()
-            e.currentTarget.classList.add("border-primary")
-            e.currentTarget.classList.add("bg-primary/5")
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault()
-            e.currentTarget.classList.remove("border-primary")
-            e.currentTarget.classList.remove("bg-primary/5")
-          }}
-          onDrop={(e) => {
-            e.preventDefault()
-            e.currentTarget.classList.remove("border-primary")
-            e.currentTarget.classList.remove("bg-primary/5")
-            onSelectFolder()
-          }}
+          className={`drop-zone flex-1 flex flex-row items-center justify-center p-5 rounded-lg cursor-pointer min-h-[150px] space-x-4 ${
+            isDragging1 ? "border-primary bg-primary/5" : ""
+          }`}
+          onClick={onSelectFolder}
         >
           <div className="w-12 h-20 flex items-center justify-center text-gray-500">
             <i className="ri-folder-line ri-3x"></i>
@@ -38,7 +37,10 @@ const CompareHash = ({ onSelectFolder, onSelectCompareFolder, navigateTo }: Comp
           <span className="text-gray-500 whitespace-nowrap">or</span>
           <button
             className="bg-primary text-white px-4 py-2 rounded-button flex items-center whitespace-nowrap"
-            onClick={onSelectFolder}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelectFolder()
+            }}
           >
             <i className="ri-folder-open-line mr-2"></i>
             Explore
@@ -46,23 +48,10 @@ const CompareHash = ({ onSelectFolder, onSelectCompareFolder, navigateTo }: Comp
         </div>
 
         <div
-          className="drop-zone flex-1 flex flex-row items-center justify-center p-5 rounded-lg cursor-pointer min-h-[150px] space-x-4"
-          onDragOver={(e) => {
-            e.preventDefault()
-            e.currentTarget.classList.add("border-primary")
-            e.currentTarget.classList.add("bg-primary/5")
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault()
-            e.currentTarget.classList.remove("border-primary")
-            e.currentTarget.classList.remove("bg-primary/5")
-          }}
-          onDrop={(e) => {
-            e.preventDefault()
-            e.currentTarget.classList.remove("border-primary")
-            e.currentTarget.classList.remove("bg-primary/5")
-            onSelectCompareFolder()
-          }}
+          className={`drop-zone flex-1 flex flex-row items-center justify-center p-5 rounded-lg cursor-pointer min-h-[150px] space-x-4 ${
+            isDragging2 ? "border-primary bg-primary/5" : ""
+          }`}
+          onClick={onSelectCompareFolder}
         >
           <div className="w-12 h-20 flex items-center justify-center text-gray-500">
             <i className="ri-folder-line ri-3x"></i>
@@ -71,7 +60,10 @@ const CompareHash = ({ onSelectFolder, onSelectCompareFolder, navigateTo }: Comp
           <span className="text-gray-500 whitespace-nowrap">or</span>
           <button
             className="bg-primary text-white px-4 py-2 rounded-button flex items-center whitespace-nowrap"
-            onClick={onSelectCompareFolder}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSelectCompareFolder()
+            }}
           >
             <i className="ri-folder-open-line mr-2"></i>
             Explore

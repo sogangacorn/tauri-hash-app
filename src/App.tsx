@@ -6,6 +6,12 @@ import { open } from "@tauri-apps/plugin-dialog"
 import type { HashReport,FileHash,HashAlgorithm,Settings } from "./types"
 import { invoke } from "@tauri-apps/api/core"
 
+declare global {
+  interface Window {
+    __TAURI__?: object
+  }
+}
+
 import LandingPage from "./components/LandingPage"
 import ProcessingState from "./components/ProcessingState"
 import HashGenerated from "./components/HashGenerated"
@@ -79,6 +85,24 @@ function App() {
         }
   }
 
+  const generateCompareHash = async (path: string) => {
+    setAppState("processing")
+    setStatusMessage("Computing comparison hash…")
+    setProgress(0)
+
+    try {
+      const report: HashReport = await invoke("compute_hash", { path, algorithm: settings.algorithm })
+      setCompareHashReport(report)
+      setAppState("hash-attached")
+      setStatusMessage("Comparison hash generated.")
+      setProgress(100)
+    } catch (error) {
+      console.error(error)
+      setStatusMessage("Error computing comparison hash")
+      setAppState("error")
+    }
+  }
+
   // Mock function to simulate hash comparison
   const compareHashes = async () => {
     if (!hashReport || !compareHashReport) return
@@ -126,10 +150,6 @@ function App() {
 
   // Function to handle folder selection
   const handleSelectFolder = async () => {
-    if (typeof window === "undefined" || !window.__TAURI__) {
-      console.warn("Dialog API is not available in this environment.")
-      return
-    }
     try {
       const selected = await open({
         directory: true,
@@ -142,6 +162,7 @@ function App() {
       }
     } catch (error) {
       console.error("Error selecting folder:", error)
+      console.warn("Dialog API is not available in this environment.")
     }
   }
 
@@ -150,12 +171,13 @@ function App() {
     generateHash(path)
   }
 
+  // Function to handle compare file drop
+  const handleDropCompareFile = (path: string) => {
+    generateCompareHash(path)
+  }
+
   // Function to handle folder selection for comparison
   const handleSelectCompareFolder = async () => {
-    if (typeof window === "undefined" || !window.__TAURI__) {
-      console.warn("Dialog API is not available in this environment.")
-      return
-    }
     try {
       const selected = await open({
         directory: true,
@@ -164,21 +186,11 @@ function App() {
       })
 
       if (selected && !Array.isArray(selected)) {
-        // Create a mock hash report for comparison
-        const mockReport: HashReport = {
-          hash: createMockHash(settings.algorithm),
-          timeTaken: "00:02:30",
-          folderCount: 987,
-          fileCount: 9876,
-          path: selected,
-          fileHashes: [],
-        }
-
-        setCompareHashReport(mockReport)
-        setAppState("hash-attached")
+        generateCompareHash(selected)
       }
     } catch (error) {
       console.error("Error selecting folder:", error)
+      console.warn("Dialog API is not available in this environment.")
     }
   }
 
@@ -229,6 +241,8 @@ function App() {
           <CompareHash
             onSelectFolder={handleSelectFolder}
             onSelectCompareFolder={handleSelectCompareFolder}
+            onDropFile={handleDropFile}
+            onDropCompareFile={handleDropCompareFile}
             navigateTo={navigateTo}
           />
         )
