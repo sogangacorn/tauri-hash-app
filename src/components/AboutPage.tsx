@@ -14,50 +14,8 @@ const AboutPage = ({ navigateTo }: AboutPageProps) => {
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-primary to-purple-500 rounded-full flex items-center justify-center mb-4">
             <i className="ri-fingerprint-line text-white text-4xl"></i>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Hash Generator</h2>
-          <p className="text-gray-400">Version 1.0.0</p>
-        </div>
-
-        <div className="space-y-6 text-gray-300">
-          <div>
-            <h3 className="text-xl font-semibold text-white mb-2">About This App</h3>
-            <p className="leading-relaxed">
-              Hash Generator is a powerful desktop application designed to generate and compare hash reports of folders.
-              It provides a secure and efficient way to verify the integrity of your files and folders.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-semibold text-white mb-2">Features</h3>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>Generate hash reports for folders</li>
-              <li>Compare hash reports to verify integrity</li>
-              <li>Support for multiple hash algorithms (MD5, SHA-1, SHA-256, SHA-512)</li>
-              <li>Detailed reporting with file and folder counts</li>
-              <li>Export hash reports for future reference</li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-semibold text-white mb-2">How It Works</h3>
-            <p className="leading-relaxed">
-              Hash Generator creates a unique digital fingerprint (hash) of your folders by analyzing the content of
-              each file. This hash can be used to verify if any changes have been made to the files or folders. When
-              comparing hashes, the application can quickly determine if two folders are identical or if there are
-              differences.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="text-xl font-semibold text-white mb-2">Contact</h3>
-            <p className="leading-relaxed">
-              For support or inquiries, please contact us at:
-              <br />
-              <a href="mailto:support@hashgenerator.com" className="text-primary hover:underline">
-                support@hashgenerator.com
-              </a>
-            </p>
-          </div>
+          <h2 className="text-2xl font-bold text-white mb-2">HashMaker</h2>
+          <p className="text-gray-400">V3.0</p>
         </div>
 
         <div className="mt-8 text-center">

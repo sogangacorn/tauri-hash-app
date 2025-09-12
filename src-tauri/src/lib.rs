@@ -11,6 +11,59 @@ use std::{
 };
 use tauri::command;
 use walkdir::WalkDir;
+use md5::Md5;
+use sha1::Sha1;
+use sha2::Sha384;
+
+#[derive(Serialize, serde::Deserialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub enum HashAlgorithm {
+    Md5,
+    Sha1,
+    Sha256,
+    Sha384,
+    Sha512,
+}
+
+enum AnyHasher {
+    Md5(Md5),
+    Sha1(Sha1),
+    Sha256(Sha256),
+    Sha384(Sha384),
+    Sha512(sha2::Sha512),
+}
+
+impl AnyHasher {
+    fn new(algorithm: HashAlgorithm) -> Self {
+        match algorithm {
+            HashAlgorithm::Md5 => AnyHasher::Md5(Md5::new()),
+            HashAlgorithm::Sha1 => AnyHasher::Sha1(Sha1::new()),
+            HashAlgorithm::Sha256 => AnyHasher::Sha256(Sha256::new()),
+            HashAlgorithm::Sha384 => AnyHasher::Sha384(Sha384::new()),
+            HashAlgorithm::Sha512 => AnyHasher::Sha512(sha2::Sha512::new()),
+        }
+    }
+
+    fn update(&mut self, data: &[u8]) {
+        match self {
+            AnyHasher::Md5(h) => h.update(data),
+            AnyHasher::Sha1(h) => h.update(data),
+            AnyHasher::Sha256(h) => h.update(data),
+            AnyHasher::Sha384(h) => h.update(data),
+            AnyHasher::Sha512(h) => h.update(data),
+        }
+    }
+
+    fn finalize(self) -> String {
+        match self {
+            AnyHasher::Md5(h) => format!("{:X}", h.finalize()),
+            AnyHasher::Sha1(h) => format!("{:X}", h.finalize()),
+            AnyHasher::Sha256(h) => format!("{:X}", h.finalize()),
+            AnyHasher::Sha384(h) => format!("{:X}", h.finalize()),
+            AnyHasher::Sha512(h) => format!("{:X}", h.finalize()),
+        }
+    }
+}
 
 /// 개별 파일·폴더 해시를 담을 구조체
 #[derive(Serialize)]
@@ -31,17 +84,19 @@ pub struct HashReport {
     pub file_hashes: Vec<FileHash>,
 }
 
-/// 단일 파일 SHA-256 해시 계산 (HEX, 대문자)
-fn hash_file(path: &Path) -> Result<String, String> {
+/// 단일 파일 해시 계산 (HEX, 대문자)
+fn hash_file(path: &Path, algorithm: HashAlgorithm) -> Result<String, String> {
     let file = File::open(path).map_err(|e| e.to_string())?;
     let mut reader = BufReader::new(file);
-    let mut hasher = Sha256::new();
     let mut buffer = [0u8; 8192];
+
+    let mut hasher = AnyHasher::new(algorithm);
+
     while let Ok(n) = reader.read(&mut buffer) {
         if n == 0 { break; }
         hasher.update(&buffer[..n]);
     }
-    Ok(format!("{:X}", hasher.finalize()))
+    Ok(hasher.finalize())
 }
 
 /// 재귀적으로 디렉토리 순회 및 해시 수집:
@@ -54,6 +109,7 @@ fn compute_and_collect(
     dir: &Path,
     base: &Path,
     out: &mut Vec<FileHash>,
+    algorithm: HashAlgorithm,
 ) -> Result<Vec<String>, String> {
     // 1) 폴더 내용 읽고 정렬
     let mut entries: Vec<_> = fs::read_dir(dir)
@@ -67,7 +123,7 @@ fn compute_and_collect(
     // 자식 폴더 먼저 처리
     let mut collected = Vec::new();
     for entry in &dirs {
-        let child_hashes = compute_and_collect(&entry.path(), base, out)?;
+        let child_hashes = compute_and_collect(&entry.path(), base, out, algorithm)?;
         collected.extend(child_hashes);
     }
 
@@ -82,7 +138,7 @@ fn compute_and_collect(
     // 3) 파일 해시 처리
     for entry in &files {
         let path = entry.path();
-        let h = hash_file(&path)?;
+        let h = hash_file(&path, algorithm)?;
         let rel_file = path.strip_prefix(base).map_err(|e| e.to_string())?
             .to_string_lossy().replace('/', "\\");
         out.push(FileHash { path: format!("\\{}", rel_file), hash: h.clone() });
@@ -93,16 +149,16 @@ fn compute_and_collect(
     let summary = if collected.is_empty() {
       String::new()                     // ▶ 자식이 0개면 해시를 비워 둡니다
     } else {
-      let mut hasher = Sha256::new();
+      let mut hasher = AnyHasher::new(algorithm);
       for h in &collected { hasher.update(h.as_bytes()); }
-      format!("{:X}", hasher.finalize())
+      hasher.finalize()
     };
     out.push(FileHash { path: marker.clone(), hash: summary });
     Ok(collected)
 }
 
 #[command]
-async fn compute_hash(path: String) -> Result<HashReport, String> {
+async fn compute_hash(path: String, algorithm: HashAlgorithm) -> Result<HashReport, String> {
     let start = Instant::now();
     let root = PathBuf::from(&path);
 
@@ -121,20 +177,20 @@ async fn compute_hash(path: String) -> Result<HashReport, String> {
 
     // 파일 또는 디렉토리 처리
     let all_hashes = if root.is_file() {
-        let h = hash_file(&root)?;
+        let h = hash_file(&root, algorithm)?;
         let rel = root.strip_prefix(base).map_err(|e| e.to_string())?
             .to_string_lossy().replace('/', "\\");
         out.push(FileHash { path: format!("\\{}", rel), hash: h.clone() });
         vec![h]
     } else {
-        compute_and_collect(&root, base, &mut out)?
+        compute_and_collect(&root, base, &mut out, algorithm)?
     };
 
     // 최종 루트 해시 계산 및 마커
-    let mut hasher = Sha256::new();
+    let mut hasher = AnyHasher::new(algorithm);
     for h in &all_hashes { hasher.update(h.as_bytes()); }
-    let root_hash = format!("{:X}", hasher.finalize());
-    let rel_root = root.strip_prefix(base).map_err(|e| e.to_string())?
+    let root_hash = hasher.finalize();
+    let _rel_root = root.strip_prefix(base).map_err(|e| e.to_string())?
         .to_string_lossy().replace('/', "\\");
 
     // 결과 조립

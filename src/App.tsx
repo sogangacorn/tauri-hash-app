@@ -59,7 +59,7 @@ function App() {
 
      try {
       // 2) 백엔드 커맨드 호출
-          const report: HashReport = await invoke("compute_hash", { path })
+          const report: HashReport = await invoke("compute_hash", { path, algorithm: settings.algorithm })
       
           // 3) 리포트로 상태·진행률 업데이트
           setHashReport(report)
@@ -111,6 +111,7 @@ function App() {
       md5: 32,
       sha1: 40,
       sha256: 64,
+      sha384: 96,
       sha512: 128,
     }
 
@@ -156,6 +157,7 @@ function App() {
           folderCount: 987,
           fileCount: 9876,
           path: selected,
+          fileHashes: [],
         }
 
         setCompareHashReport(mockReport)

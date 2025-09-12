@@ -57,6 +57,7 @@ export default function SettingsModal({ settings, onSave, onClose }: SettingsMod
                   <option value="md5">MD5</option>
                   <option value="sha1">SHA-1</option>
                   <option value="sha256">SHA-256</option>
+                  <option value="sha384">SHA-384</option>
                   <option value="sha512">SHA-512</option>
                 </select>
               </div>

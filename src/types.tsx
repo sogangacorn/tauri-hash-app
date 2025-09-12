@@ -37,7 +37,7 @@ function buildTree(flat: Flat[]): Node[] {
 }
 
 /** 해시 알고리즘 종류 */
-export type HashAlgorithm = "md5" | "sha1" | "sha256" | "sha512";
+export type HashAlgorithm = "md5" | "sha1" | "sha256" | "sha384" | "sha512";
 
 /** 개별 파일 및 폴더의 경로, 해시, 자식 목록을 담는 타입 */
 export interface FileHash {
