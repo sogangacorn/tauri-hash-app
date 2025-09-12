@@ -7,6 +7,12 @@ interface DropzoneOptions {
   onDrop: (path: string) => void
 }
 
+declare global {
+  interface Window {
+    __TAURI__?: object
+  }
+}
+
 export function useDropzone({ onDrop }: DropzoneOptions) {
   const [isDragging, setIsDragging] = useState(false)
 
@@ -22,6 +28,10 @@ export function useDropzone({ onDrop }: DropzoneOptions) {
   )
 
   useEffect(() => {
+    if (typeof window === "undefined" || !window.__TAURI__) {
+      return
+    }
+
     const unlistenHover = listen<string[]>("tauri://file-drop-hover", () => {
       if (!isDragging) setIsDragging(true)
     })

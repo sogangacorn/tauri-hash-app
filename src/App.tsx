@@ -126,6 +126,10 @@ function App() {
 
   // Function to handle folder selection
   const handleSelectFolder = async () => {
+    if (typeof window === "undefined" || !window.__TAURI__) {
+      console.warn("Dialog API is not available in this environment.")
+      return
+    }
     try {
       const selected = await open({
         directory: true,
@@ -148,6 +152,10 @@ function App() {
 
   // Function to handle folder selection for comparison
   const handleSelectCompareFolder = async () => {
+    if (typeof window === "undefined" || !window.__TAURI__) {
+      console.warn("Dialog API is not available in this environment.")
+      return
+    }
     try {
       const selected = await open({
         directory: true,
