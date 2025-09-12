@@ -13,7 +13,7 @@ function buildTree(flat: Flat[]): Node[] {
     // ── 새 규칙 ──────────────────────────────
     // 같은 폴더 경로가 *연속*으로 두 번 나오면
     // 두 번째 레코드는 '요약 줄(♦♦)' 로 취급
-    const isRepeated = stack.length &&
+    const isRepeated = stack.length > 0 &&
                        stack[stack.length - 1].path === item.path;
 
     const isSummary = isFolderMarker && isRepeated;

@@ -24,6 +24,7 @@ export type AppState =
   | "hash-attached"
   | "hash-compare-completed"
   | "about"
+  | "error"
 
 function App() {
   const [appState, setAppState] = useState<AppState>("landing")
