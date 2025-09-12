@@ -141,6 +141,11 @@ function App() {
     }
   }
 
+  // Function to handle file drop
+  const handleDropFile = (path: string) => {
+    generateHash(path)
+  }
+
   // Function to handle folder selection for comparison
   const handleSelectCompareFolder = async () => {
     try {
@@ -195,7 +200,13 @@ function App() {
   const renderContent = () => {
     switch (appState) {
       case "landing":
-        return <LandingPage onSelectFolder={handleSelectFolder} navigateTo={navigateTo} />
+        return (
+          <LandingPage
+            onSelectFolder={handleSelectFolder}
+            onDropFile={handleDropFile}
+            navigateTo={navigateTo}
+          />
+        )
       case "processing":
         return <ProcessingState progress={progress} stats={processingStats} />
       case "hash-generated":
@@ -229,7 +240,13 @@ function App() {
       case "about":
         return <AboutPage navigateTo={navigateTo} />
       default:
-        return <LandingPage onSelectFolder={handleSelectFolder} navigateTo={navigateTo} />
+        return (
+          <LandingPage
+            onSelectFolder={handleSelectFolder}
+            onDropFile={handleDropFile}
+            navigateTo={navigateTo}
+          />
+        )
     }
   }
 
