@@ -10,11 +10,12 @@ interface LandingPageProps {
 }
 
 const LandingPage = ({ onSelectFolder, onDropFile, navigateTo }: LandingPageProps) => {
-  const { isDragging } = useDropzone({ onDrop: onDropFile })
+  const { isDragging, dropzoneProps } = useDropzone({ onDrop: onDropFile })
 
   return (
     <div className="p-6 flex flex-col md:flex-row gap-6">
       <div
+        {...dropzoneProps}
         className={`drop-zone flex-1 flex flex-col items-center justify-center p-10 rounded-lg cursor-pointer min-h-[300px] ${
           isDragging ? "border-primary bg-primary/5" : ""
         }`}

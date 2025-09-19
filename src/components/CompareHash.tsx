@@ -18,13 +18,20 @@ const CompareHash = ({
   onDropCompareFile,
   navigateTo,
 }: CompareHashProps) => {
-  const { isDragging: isDragging1 } = useDropzone({ onDrop: onDropFile })
-  const { isDragging: isDragging2 } = useDropzone({ onDrop: onDropCompareFile })
+  const {
+    isDragging: isDragging1,
+    dropzoneProps: dropzoneProps1,
+  } = useDropzone({ onDrop: onDropFile })
+  const {
+    isDragging: isDragging2,
+    dropzoneProps: dropzoneProps2,
+  } = useDropzone({ onDrop: onDropCompareFile })
 
   return (
     <div className="p-6 flex flex-col md:flex-row gap-6">
       <div className="flex-1 flex flex-col gap-4">
         <div
+          {...dropzoneProps1}
           className={`drop-zone flex-1 flex flex-row items-center justify-center p-5 rounded-lg cursor-pointer min-h-[150px] space-x-4 ${
             isDragging1 ? "border-primary bg-primary/5" : ""
           }`}
@@ -48,6 +55,7 @@ const CompareHash = ({
         </div>
 
         <div
+          {...dropzoneProps2}
           className={`drop-zone flex-1 flex flex-row items-center justify-center p-5 rounded-lg cursor-pointer min-h-[150px] space-x-4 ${
             isDragging2 ? "border-primary bg-primary/5" : ""
           }`}
