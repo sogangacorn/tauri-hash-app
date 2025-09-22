@@ -1,15 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { open } from "@tauri-apps/plugin-dialog"
 
-import type { HashReport,FileHash,HashAlgorithm,Settings } from "./types"
+import type { HashReport,Settings } from "./types"
 import { invoke } from "@tauri-apps/api/core"
+import { listen, type UnlistenFn } from "@tauri-apps/api/event"
+import { getCurrentWindow } from "@tauri-apps/api/window"
 
 declare global {
   interface Window {
     __TAURI__?: object
   }
+}
+
+type ProgressPayload = {
+  status: string
+  processed: number
+  total: number
 }
 
 import LandingPage from "./components/LandingPage"
@@ -50,102 +58,117 @@ function App() {
   const [hashReport, setHashReport] = useState<HashReport | null>(null)
   const [compareHashReport, setCompareHashReport] = useState<HashReport | null>(null)
   const [comparisonResult, setComparisonResult] = useState<"identical" | "mismatch" | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [statusMessage, setStatusMessage] = useState("Ready")
-  const [processingStats, setProcessingStats] = useState<{ current: number; total: number; eta: string }>({
-    current: 0,
+  const [progressInfo, setProgressInfo] = useState({
+    status: "Ready",
+    processed: 0,
     total: 0,
-    eta: "00:00:00",
+    percent: 0,
   })
 
-  // Mock function to simulate hash generation
+  useEffect(() => {
+    console.log("[progress state]", progressInfo)
+  }, [progressInfo])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.__TAURI__) {
+      console.warn("Tauri context not detected; progress events unavailable")
+      return () => {}
+    }
+
+    console.log("[progress listener] mounting, tauri detected", Boolean(window.__TAURI__))
+
+    let unlistenRef: UnlistenFn | null = null
+    let canceled = false
+
+    const registerListener = async () => {
+      try {
+        const target = window.__TAURI__ ? await getCurrentWindow() : null
+        const handler = (payload: ProgressPayload) => {
+          const percent = payload.total > 0
+            ? Math.min(100, Math.round((payload.processed / payload.total) * 100))
+            : 0
+          setProgressInfo({
+            status: payload.status,
+            processed: payload.processed,
+            total: payload.total,
+            percent,
+          })
+        }
+
+        const unlisten = target
+          ? await target.listen<ProgressPayload>("hash-progress", (event) => {
+              console.log("[hash-progress current window]", event.payload)
+              handler(event.payload)
+            })
+          : await listen<ProgressPayload>("hash-progress", (event) => {
+              console.log("[hash-progress global]", event.payload)
+              handler(event.payload)
+            })
+        if (canceled) {
+          unlisten()
+          return
+        }
+        unlistenRef = unlisten
+        console.log("[hash-progress] listener registered", target ? "window" : "global")
+      } catch (error) {
+        console.error("Failed to register progress listener", error)
+      }
+    }
+
+    registerListener()
+
+    return () => {
+      canceled = true
+      console.log("[progress listener] tearing down")
+      if (unlistenRef) {
+        unlistenRef()
+        unlistenRef = null
+      }
+    }
+  }, [])
   const generateHash = async (path: string) => {
     setAppState("processing")
-    setStatusMessage("Computing hash…")
-    setProgress(0)
+    setProgressInfo({ status: "Listing files and folders...", processed: 0, total: 0, percent: 0 })
+    console.log("[invoke] compute_hash", { path, algorithm: settings.algorithm })
 
      try {
       // 2) 백엔드 커맨드 호출
           const report: HashReport = await invoke("compute_hash", { path, algorithm: settings.algorithm })
-      
+     
           // 3) 리포트로 상태·진행률 업데이트
           setHashReport(report)
-          setStatusMessage("Hash generated completely")
           setAppState("hash-generated")
-          setProgress(100) // 완료
-          setProcessingStats({
-            current: report.fileCount + report.folderCount,
-            total: report.fileCount + report.folderCount,
-            eta: report.timeTaken,
-          })
         } catch (error) {
           console.error(error)
-          setStatusMessage("Error computing hash")
           setAppState("error")
+          setProgressInfo({ status: "Error", processed: 0, total: 0, percent: 0 })
         }
   }
 
   const generateCompareHash = async (path: string) => {
     setAppState("processing")
-    setStatusMessage("Computing comparison hash…")
-    setProgress(0)
+    setProgressInfo({ status: "Listing files and folders...", processed: 0, total: 0, percent: 0 })
+    console.log("[invoke] compute_hash (compare)", { path, algorithm: settings.algorithm })
 
     try {
       const report: HashReport = await invoke("compute_hash", { path, algorithm: settings.algorithm })
       setCompareHashReport(report)
       setAppState("hash-attached")
-      setStatusMessage("Comparison hash generated.")
-      setProgress(100)
     } catch (error) {
       console.error(error)
-      setStatusMessage("Error computing comparison hash")
       setAppState("error")
+      setProgressInfo({ status: "Error", processed: 0, total: 0, percent: 0 })
     }
   }
 
-  // Mock function to simulate hash comparison
   const compareHashes = async () => {
     if (!hashReport || !compareHashReport) return
 
     setAppState("processing")
-    setStatusMessage("Comparing Hash Reports")
-    setProgress(0)
-
-    // Simulate processing
-    let currentProgress = 0
-    const interval = setInterval(() => {
-      currentProgress += Math.random() * 10
-      if (currentProgress >= 100) {
-        currentProgress = 100
-        clearInterval(interval)
-
-        // Compare hashes
-        const result = hashReport.hash === compareHashReport.hash ? "identical" : "mismatch"
-        setComparisonResult(result)
-        setStatusMessage("Ready")
-        setAppState("hash-compare-completed")
-      }
-
-      setProgress(currentProgress)
-    }, 100)
-  }
-
-  // Helper function to create a mock hash
-  const createMockHash = (algorithm: HashAlgorithm): string => {
-    const lengths: Record<HashAlgorithm, number> = {
-      md5: 32,
-      sha1: 40,
-      sha256: 64,
-      sha384: 96,
-      sha512: 128,
-    }
-
-    const chars = "0123456789ABCDEF"
-    let result = ""
-    for (let i = 0; i < lengths[algorithm]; i++) {
-      result += chars[Math.floor(Math.random() * chars.length)]
-    }
-    return result
+    const result = hashReport.hash === compareHashReport.hash ? "identical" : "mismatch"
+    setComparisonResult(result)
+    setAppState("hash-compare-completed")
+    setProgressInfo((prev) => ({ ...prev, status: "Ready" }))
   }
 
   // Function to handle folder selection
@@ -228,7 +251,7 @@ function App() {
           />
         )
       case "processing":
-        return <ProcessingState progress={progress} stats={processingStats} />
+        return <ProcessingState />
       case "hash-generated":
         return <HashGenerated
            hashReport={hashReport!}
@@ -292,23 +315,20 @@ function App() {
 
         {renderContent()}
 
-        <div className="status-bar p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <span className="text-gray-500 mr-2">Status:</span>
-              <span className={`${statusMessage === "Ready" ? "text-green-500" : "text-sky-500"}`}>
-                {statusMessage}
-              </span>
+        <div className="p-4 border-t border-gray-700">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Status:</span>
+              <span className="text-sky-400">{progressInfo.status}</span>
             </div>
-            <span className="text-gray-500">
-              {appState === "processing" &&
-                `(${processingStats.current}/${processingStats.total}, ETA: ${processingStats.eta})`}
+            <span className="text-gray-400">
+              {progressInfo.processed}/{progressInfo.total}
             </span>
           </div>
-          <div className="mt-3 progress-bar">
+          <div className="mt-3 h-2 bg-gray-700 rounded-full overflow-hidden">
             <div
-              className={`progress-bar-fill ${statusMessage === "Ready" ? "bg-green-500" : "bg-sky-500"}`}
-              style={{ width: `${progress}%` }}
+              className="h-full bg-sky-500 transition-all duration-200"
+              style={{ width: `${progressInfo.percent}%` }}
             ></div>
           </div>
         </div>

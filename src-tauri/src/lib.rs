@@ -2,14 +2,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::{
     fs::{self, File},
     io::{BufReader, Read},
     path::{Path, PathBuf},
     time::Instant,
 };
-use tauri::command;
+use tauri::{command, Window, Emitter};
 use walkdir::WalkDir;
 use md5::Md5;
 use sha1::Sha1;
@@ -23,6 +23,58 @@ pub enum HashAlgorithm {
     Sha256,
     Sha384,
     Sha512,
+}
+
+#[derive(Serialize, Clone)]
+struct ProgressPayload {
+    status: String,
+    processed: usize,
+    total: usize,
+}
+
+struct ProgressState<'a> {
+    window: &'a Window,
+    processed: usize,
+    total: usize,
+}
+
+impl<'a> ProgressState<'a> {
+    fn new(window: &'a Window, total: usize) -> Self {
+        Self {
+            window,
+            processed: 0,
+            total,
+        }
+    }
+
+    fn emit(&self, status: &str) {
+        let payload = ProgressPayload {
+            status: status.to_string(),
+            processed: self.processed,
+            total: self.total,
+        };
+        println!(
+            "[progress] status={} processed={} total={}",
+            payload.status, payload.processed, payload.total
+        );
+        let _ = self.window.emit("hash-progress", payload);
+    }
+
+    fn set_status(&self, status: &str) {
+        self.emit(status);
+    }
+
+    fn increment(&mut self, status: &str) {
+        if self.processed < self.total {
+            self.processed += 1;
+        }
+        self.emit(status);
+    }
+
+    fn complete(&mut self, status: &str) {
+        self.processed = self.total;
+        self.emit(status);
+    }
 }
 
 enum AnyHasher {
@@ -110,6 +162,7 @@ fn compute_and_collect(
     base: &Path,
     out: &mut Vec<FileHash>,
     algorithm: HashAlgorithm,
+    progress: &mut ProgressState,
 ) -> Result<Vec<String>, String> {
     // 1) 폴더 내용 읽고 정렬
     let mut entries: Vec<_> = fs::read_dir(dir)
@@ -123,7 +176,7 @@ fn compute_and_collect(
     // 자식 폴더 먼저 처리
     let mut collected = Vec::new();
     for entry in &dirs {
-        let child_hashes = compute_and_collect(&entry.path(), base, out, algorithm)?;
+        let child_hashes = compute_and_collect(&entry.path(), base, out, algorithm, progress)?;
         collected.extend(child_hashes);
     }
 
@@ -143,6 +196,13 @@ fn compute_and_collect(
             .to_string_lossy().replace('/', "\\");
         out.push(FileHash { path: format!("\\{}", rel_file), hash: h.clone() });
         collected.push(h);
+        progress.increment("Computing hash...");
+        println!(
+            "[compute_and_collect] processed file {:?} ({}/{})",
+            path,
+            progress.processed,
+            progress.total
+        );
     }
 
     // 4) 폴더 요약 마커 출력  ─────────────────────────────
@@ -158,22 +218,40 @@ fn compute_and_collect(
 }
 
 #[command]
-async fn compute_hash(path: String, algorithm: HashAlgorithm) -> Result<HashReport, String> {
+async fn compute_hash(window: Window, path: String, algorithm: HashAlgorithm) -> Result<HashReport, String> {
     let start = Instant::now();
     let root = PathBuf::from(&path);
 
-    // 전체 폴더 개수
-    let folder_count = if root.is_dir() {
-        WalkDir::new(&root)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_dir())
-            .count()
-    } else { 0 };
+    // 전체 폴더 및 파일 개수
+    let (folder_count, total_files) = if root.is_dir() {
+        let mut folders = 0;
+        let mut files = 0;
+        for entry in WalkDir::new(&root).into_iter().filter_map(Result::ok) {
+            if entry.file_type().is_dir() {
+                folders += 1;
+            } else if entry.file_type().is_file() {
+                files += 1;
+            }
+        }
+        (folders, files)
+    } else if root.is_file() {
+        (0, 1)
+    } else {
+        (0, 0)
+    };
+
+    let mut progress = ProgressState::new(&window, total_files);
+    progress.set_status("Listing files and folders...");
+    println!(
+        "[compute_hash] target={} folders={} files={}",
+        path, folder_count, total_files
+    );
 
     // 기준 경로
     let base = root.parent().ok_or("Base path error")?;
     let mut out = Vec::new();
+
+    progress.set_status("Computing hash...");
 
     // 파일 또는 디렉토리 처리
     let all_hashes = if root.is_file() {
@@ -181,15 +259,21 @@ async fn compute_hash(path: String, algorithm: HashAlgorithm) -> Result<HashRepo
         let rel = root.strip_prefix(base).map_err(|e| e.to_string())?
             .to_string_lossy().replace('/', "\\");
         out.push(FileHash { path: format!("\\{}", rel), hash: h.clone() });
+        println!("[compute_hash] single file processed");
+        progress.increment("Computing hash...");
         vec![h]
     } else {
-        compute_and_collect(&root, base, &mut out, algorithm)?
+        compute_and_collect(&root, base, &mut out, algorithm, &mut progress)?
     };
+
+    progress.complete("Making report...");
+    progress.set_status("Ready");
 
     // 최종 루트 해시 계산 및 마커
     let mut hasher = AnyHasher::new(algorithm);
     for h in &all_hashes { hasher.update(h.as_bytes()); }
     let root_hash = hasher.finalize();
+    println!("[compute_hash] hashing completed, total files processed={}", progress.processed);
     let _rel_root = root.strip_prefix(base).map_err(|e| e.to_string())?
         .to_string_lossy().replace('/', "\\");
 

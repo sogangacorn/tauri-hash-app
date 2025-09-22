@@ -1,13 +1,4 @@
-interface ProcessingStateProps {
-  progress: number
-  stats: {
-    current: number
-    total: number
-    eta: string
-  }
-}
-
-const ProcessingState = ({ progress, stats }: ProcessingStateProps) => {
+const ProcessingState = () => {
   return (
     <div className="p-6 flex flex-col md:flex-row gap-6">
       <div className="hash-display flex-1 flex flex-col items-center justify-center p-10 rounded-lg cursor-pointer min-h-[300px]">
